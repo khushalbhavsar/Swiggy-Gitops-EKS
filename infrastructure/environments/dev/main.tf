@@ -12,7 +12,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "swiggy111"
+    bucket = "swiggy-gitops-tfstate-843998948464"
     key    = "dev/terraform.tfstate"
     region = "us-east-1"
   }
@@ -42,8 +42,9 @@ module "vpc" {
 }
 
 module "ec2_jumphost" {
-  source = "../../modules/ec2-jumphost"
-  # Pass required variables for dev
+  source            = "../../modules/ec2-jumphost"
+  subnet_id         = module.vpc.public_subnet1_id
+  security_group_id = module.vpc.security_group_id
 }
 
 module "eks" {

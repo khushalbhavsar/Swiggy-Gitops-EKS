@@ -84,4 +84,14 @@ variable "instance_name" {
   type        = string
   default     = "Jumphost-server"
 }
+
+variable "subnet_id" {
+  description = "Subnet ID for the EC2 instance"
+  type        = string
+}
+
+variable "security_group_id" {
+  description = "Security Group ID for the EC2 instance"
+  type        = string
+}
 #

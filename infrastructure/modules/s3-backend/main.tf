@@ -3,10 +3,10 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "bucket1" {
-  bucket = "swiggy111"
+  bucket = "swiggy-gitops-tfstate-843998948464"
 
   tags = {
-    Name        = "swiggy111"
+    Name        = "swiggy-gitops-tfstate-843998948464"
     Environment = "dev"
   }
 }
@@ -19,11 +19,11 @@ resource "aws_s3_bucket_versioning" "bucket1_versioning" {
 }
 
 resource "aws_s3_bucket" "bucket2" {
-  bucket = "swiggy222"
+  bucket = "swiggy-gitops-tfstate-843998948464-prod"
 
   tags = {
-    Name        = "swiggy222"
-    Environment = "dev"
+    Name        = "swiggy-gitops-tfstate-843998948464-prod"
+    Environment = "prod"
   }
 }
 

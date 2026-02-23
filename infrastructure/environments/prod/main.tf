@@ -12,7 +12,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "swiggy222"
+    bucket = "swiggy-gitops-tfstate-843998948464"
     key    = "prod/terraform.tfstate"
     region = "us-east-1"
   }
