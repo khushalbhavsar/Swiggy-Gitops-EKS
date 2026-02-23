@@ -1,0 +1,60 @@
+# Security Policies for Swiggy GitOps Project
+#
+# This directory contains OPA/Rego or Kyverno policies for:
+# - Pod security standards enforcement
+# - Image registry restrictions
+# - Resource limits enforcement
+# - Network policy requirements
+#
+# Example Kyverno policy: Require resource limits on all containers
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require Resource Limits
+    policies.kyverno.io/description: >-
+      All containers must have CPU and memory resource limits defined.
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: validate-resources
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "CPU and memory resource limits are required."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    memory: "?*"
+                    cpu: "?*"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/description: >-
+      Images must come from the approved ECR registry only.
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: validate-registries
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Images must be from the approved ECR registry."
+        pattern:
+          spec:
+            containers:
+              - image: "*.dkr.ecr.*.amazonaws.com/*"

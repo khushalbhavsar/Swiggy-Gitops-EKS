@@ -1,0 +1,204 @@
+pipeline {
+    agent any 
+    tools {
+        jdk 'jdk'
+        nodejs 'nodejs'
+    }
+    environment  {
+        SCANNER_HOME= tool 'sonar-scanner'                // replace your sonarqube scanner name
+        SONARQUBE_SERVER  = 'sonar-server'                // replace your Jenkins global SonarQube server name (Manage Jenkins > Configure System)
+        AWS_ACCOUNT_ID = '884394270268'                   // replace AWS account ID
+        AWS_ECR_REPO_NAME = 'swiggy'                      //replace ECR repository name
+        SONAR_TOKEN_CRED  = 'sonarqube-token'            // Jenkins secret text credential id
+        AWS_DEFAULT_REGION = 'us-east-1'                 // replace AWS region
+        REPOSITORY_URI = "884394270268.dkr.ecr.us-east-1.amazonaws.com"        // replace your repository URL
+
+    }
+    stages {
+        stage('Cleaning Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'master', url: 'https://github.com/arumullayaswanth/Swiggy-GitOps-project.git'
+            }
+        }
+        stage("List Files") {
+            steps {
+                sh 'ls -la' // verfy files after checkout
+            }
+        }
+        stage('Sonarqube Analysis') {
+            steps {
+                dir('Swiggy') {
+                    withSonarQubeEnv(env.SONARQUBE_SERVER) {
+                        // change your prohect name my project name is swiggy
+                        sh ''' 
+                        ${SCANNER_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectName=swiggy \
+                        -Dsonar.projectKey=swiggy 
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Quality Check') {
+            steps {
+                script {
+                    // This requires the "Quality Gates" webhook to be configured in SonarQube
+                    waitForQualityGate abortPipeline: false, credentialsId: env.SONAR_TOKEN_CRED 
+                }
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                cd Swiggy
+                ls -la  # Verify package.json exists
+                if [ -f package.json ]; then
+                    rm -rf node_modules package-lock.json  # Remove old dependencies
+                    npm install  # Install fresh dependencies
+                else
+                    echo "Error: package.json not found in Swiggy!"
+                    exit 1
+                fi
+                '''
+            }
+        }
+
+        // this step it will take 45 min
+        stage('OWASP FS Scan') {
+            steps {
+                dir('Swiggy') {   // Ensure you are scanning the right folder
+                    dependencyCheck additionalArguments: '--scan . --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-check'
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                }
+            }
+        }
+
+        stage('Trivy File Scan') {
+            steps {
+                dir('Swiggy') {
+                    sh 'trivy fs . > trivyfs.txt'
+                }
+            }
+        }
+        // no change in this stage
+        stage("Docker Image Build") {
+            steps {
+                script {
+                    dir('Swiggy') {
+                            sh 'docker system prune -f'
+                            sh 'docker container prune -f'
+                            sh 'docker build -t ${AWS_ECR_REPO_NAME} .'
+                    }
+                }
+            }
+        }
+        // no change in this stage
+        stage("ECR Image Pushing") {
+            steps {
+                script {
+                        sh 'aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}'
+                        sh 'docker tag ${AWS_ECR_REPO_NAME}:latest ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
+                        sh 'docker push ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
+                }
+            }
+        }
+        // no change in this stage
+        stage("TRIVY Image Scan") {
+            steps {
+                sh 'trivy image ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER} > trivyimage.txt'
+            }
+        }
+        stage('Checkout Code') {
+            steps {
+                git branch: 'master', url: 'https://github.com/arumullayaswanth/Swiggy-GitOps-project.git'
+            }
+        }
+        stage('Update Deployment file') {
+            environment {
+                GIT_REPO_NAME = "Swiggy-GitOps-project"      // replace your github rep name
+                GIT_EMAIL = "yaswanth.arumulla@gmail.com"    //replacr your email id
+                GIT_USER_NAME = "arumullayaswanth"           // replace your user name
+                YAML_FILE = "deployment.yml"
+            }
+            steps {
+                dir('kubernetes-files') {
+                    withCredentials([string(credentialsId: 'my-git-pattoken', variable: 'git_token')]) {
+                        sh '''
+                            git config user.email "${GIT_EMAIL}"
+                            git config user.name "${GIT_USER_NAME}"
+                            BUILD_NUMBER=${BUILD_NUMBER}
+                            echo $BUILD_NUMBER
+
+                            # push this image to your git hub
+                            sed -i "s#image:.*#image: ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:$BUILD_NUMBER#g" ${YAML_FILE}
+                            git add .
+                            git commit -m "Update ${AWS_ECR_REPO_NAME} Image to version \${BUILD_NUMBER}"
+                            git push https://${git_token}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
+        
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    post {
+    always {
+        script {
+            // Ensure required files exist or create dummy files
+            sh 'if [ ! -f trivyfs.txt ]; then echo "No trivyfs report found" > trivyfs.txt; fi'
+            sh 'if [ ! -f trivyimage.txt ]; then echo "No trivy image report found" > trivyimage.txt; fi'
+            sh 'if [ ! -f dependency-check-report.xml ]; then echo "No dependency check report found" > dependency-check-report.xml; fi'
+        }
+        emailext(
+            from: 'yaswanth.arumulla@gmail.com',
+            replyTo: 'yaswanth.arumulla@gmail.com',
+            attachLog: true,
+            subject: "Build ${currentBuild.result}",
+            body: """
+                <html>
+                <body>
+                    <div style="background-color: #FFA07A; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">Project: ${env.JOB_NAME}</p>
+                    </div>
+                    <div style="background-color: #90EE90; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">Build Number: ${env.BUILD_NUMBER}</p>
+                    </div>
+                    <div style="background-color: #87CEEB; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">URL: ${env.BUILD_URL}</p>
+                    </div>
+                </body>
+                </html>
+            """,
+            to: 'yaswanth.arumulla@gmail.com',
+            mimeType: 'text/html',
+            attachmentsPattern: 'trivyfs.txt,trivyimage.txt,**/dependency-check-report.xml'
+        )
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,26 @@
+# ArgoCD App-of-Apps Pattern
+# This root application manages all other ArgoCD applications
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: swiggy-gitops
+  source:
+    repoURL: https://github.com/<your-org>/swiggy-gitops.git  # Replace with your repo
+    targetRevision: HEAD
+    path: gitops/apps
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

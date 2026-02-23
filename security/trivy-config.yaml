@@ -1,0 +1,53 @@
+# Trivy Configuration for Swiggy GitOps Project
+# https://aquasecurity.github.io/trivy/latest/docs/configuration/
+
+scan:
+  # Scan severity levels
+  severity:
+    - CRITICAL
+    - HIGH
+    - MEDIUM
+
+  # Skip specific vulnerability IDs (if needed)
+  # skip-files:
+  #   - "path/to/skip"
+
+  # Security checks to run
+  security-checks:
+    - vuln
+    - config
+    - secret
+
+image:
+  # Image scan settings
+  removed-pkgs: false
+  input: ""
+
+vulnerability:
+  # Vulnerability scan type
+  type:
+    - os
+    - library
+
+  # Ignore unfixed vulnerabilities
+  ignore-unfixed: false
+
+misconfiguration:
+  # Terraform misconfig checks
+  terraform:
+    enabled: true
+
+  # Dockerfile misconfig checks
+  docker:
+    enabled: true
+
+cache:
+  # Cache directory
+  dir: "/tmp/trivy-cache"
+
+  # Cache TTL
+  ttl: 24h
+
+output:
+  format: table
+  # Additional output formats: json, sarif

@@ -1,0 +1,36 @@
+# Prometheus Helm Release manifest for ArgoCD
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "*"
+    helm:
+      releaseName: prometheus
+      values: |
+        grafana:
+          enabled: false  # Grafana managed separately
+        prometheus:
+          prometheusSpec:
+            retention: 15d
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prometheus
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
