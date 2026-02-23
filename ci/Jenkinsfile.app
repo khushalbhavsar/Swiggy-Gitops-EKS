@@ -7,11 +7,11 @@ pipeline {
     environment  {
         SCANNER_HOME= tool 'sonar-scanner'                // replace your sonarqube scanner name
         SONARQUBE_SERVER  = 'sonar-server'                // replace your Jenkins global SonarQube server name (Manage Jenkins > Configure System)
-        AWS_ACCOUNT_ID = '884394270268'                   // replace AWS account ID
+        AWS_ACCOUNT_ID = '843998948464'                   // replace AWS account ID
         AWS_ECR_REPO_NAME = 'swiggy'                      //replace ECR repository name
         SONAR_TOKEN_CRED  = 'sonarqube-token'            // Jenkins secret text credential id
         AWS_DEFAULT_REGION = 'us-east-1'                 // replace AWS region
-        REPOSITORY_URI = "884394270268.dkr.ecr.us-east-1.amazonaws.com"        // replace your repository URL
+        REPOSITORY_URI = "843998948464.dkr.ecr.us-east-1.amazonaws.com"        // replace your repository URL
 
     }
     stages {
@@ -22,7 +22,7 @@ pipeline {
         }
         stage('Checkout from Git') {
             steps {
-                git branch: 'master', url: 'https://github.com/arumullayaswanth/Swiggy-GitOps-project.git'
+                git branch: 'main', url: 'https://github.com/khushalbhavsar/Swiggy-Gitops-EKS.git'
             }
         }
         stage("List Files") {
@@ -32,9 +32,8 @@ pipeline {
         }
         stage('Sonarqube Analysis') {
             steps {
-                dir('Swiggy') {
+                dir('app/swiggy-react') {
                     withSonarQubeEnv(env.SONARQUBE_SERVER) {
-                        // change your prohect name my project name is swiggy
                         sh ''' 
                         ${SCANNER_HOME}/bin/sonar-scanner \
                         -Dsonar.projectName=swiggy \
@@ -54,24 +53,25 @@ pipeline {
         }
         stage('Install Dependencies') {
             steps {
-                sh '''
-                cd Swiggy
-                ls -la  # Verify package.json exists
-                if [ -f package.json ]; then
-                    rm -rf node_modules package-lock.json  # Remove old dependencies
-                    npm install  # Install fresh dependencies
-                else
-                    echo "Error: package.json not found in Swiggy!"
-                    exit 1
-                fi
-                '''
+                dir('app/swiggy-react') {
+                    sh '''
+                    ls -la  # Verify package.json exists
+                    if [ -f package.json ]; then
+                        rm -rf node_modules package-lock.json  # Remove old dependencies
+                        npm install  # Install fresh dependencies
+                    else
+                        echo "Error: package.json not found!"
+                        exit 1
+                    fi
+                    '''
+                }
             }
         }
 
         // this step it will take 45 min
         stage('OWASP FS Scan') {
             steps {
-                dir('Swiggy') {   // Ensure you are scanning the right folder
+                dir('app/swiggy-react') {
                     dependencyCheck additionalArguments: '--scan . --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-check'
                     dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
                 }
@@ -80,7 +80,7 @@ pipeline {
 
         stage('Trivy File Scan') {
             steps {
-                dir('Swiggy') {
+                dir('app/swiggy-react') {
                     sh 'trivy fs . > trivyfs.txt'
                 }
             }
@@ -89,7 +89,7 @@ pipeline {
         stage("Docker Image Build") {
             steps {
                 script {
-                    dir('Swiggy') {
+                    dir('app/swiggy-react') {
                             sh 'docker system prune -f'
                             sh 'docker container prune -f'
                             sh 'docker build -t ${AWS_ECR_REPO_NAME} .'
@@ -115,18 +115,18 @@ pipeline {
         }
         stage('Checkout Code') {
             steps {
-                git branch: 'master', url: 'https://github.com/arumullayaswanth/Swiggy-GitOps-project.git'
+                git branch: 'main', url: 'https://github.com/khushalbhavsar/Swiggy-Gitops-EKS.git'
             }
         }
         stage('Update Deployment file') {
             environment {
-                GIT_REPO_NAME = "Swiggy-GitOps-project"      // replace your github rep name
-                GIT_EMAIL = "yaswanth.arumulla@gmail.com"    //replacr your email id
-                GIT_USER_NAME = "arumullayaswanth"           // replace your user name
-                YAML_FILE = "deployment.yml"
+                GIT_REPO_NAME = "Swiggy-Gitops-EKS"      // replace your github rep name
+                GIT_EMAIL = "khushalbhavsar41@gmail.com"    // replace your email id
+                GIT_USER_NAME = "khushalbhavsar"           // replace your user name
+                YAML_FILE = "deployment.yaml"
             }
             steps {
-                dir('kubernetes-files') {
+                dir('gitops/apps/swiggy') {
                     withCredentials([string(credentialsId: 'my-git-pattoken', variable: 'git_token')]) {
                         sh '''
                             git config user.email "${GIT_EMAIL}"
@@ -134,11 +134,11 @@ pipeline {
                             BUILD_NUMBER=${BUILD_NUMBER}
                             echo $BUILD_NUMBER
 
-                            # push this image to your git hub
+                            # Update the deployment image tag
                             sed -i "s#image:.*#image: ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:$BUILD_NUMBER#g" ${YAML_FILE}
                             git add .
                             git commit -m "Update ${AWS_ECR_REPO_NAME} Image to version \${BUILD_NUMBER}"
-                            git push https://${git_token}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master
+                            git push https://${git_token}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
         
                         '''
                     }
@@ -155,8 +155,8 @@ pipeline {
             sh 'if [ ! -f dependency-check-report.xml ]; then echo "No dependency check report found" > dependency-check-report.xml; fi'
         }
         emailext(
-            from: 'yaswanth.arumulla@gmail.com',
-            replyTo: 'yaswanth.arumulla@gmail.com',
+            from: 'khushalbhavsar41@gmail.com',
+            replyTo: 'khushalbhavsar41@gmail.com',
             attachLog: true,
             subject: "Build ${currentBuild.result}",
             body: """
@@ -174,7 +174,7 @@ pipeline {
                 </body>
                 </html>
             """,
-            to: 'yaswanth.arumulla@gmail.com',
+            to: 'khushalbhavsar41@gmail.com',
             mimeType: 'text/html',
             attachmentsPattern: 'trivyfs.txt,trivyimage.txt,**/dependency-check-report.xml'
         )

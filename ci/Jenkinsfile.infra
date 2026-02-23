@@ -12,7 +12,7 @@ pipeline {
     stages {
         stage('Checkout from Git') {
             steps {
-                echo 'Checking out Git repository...'
+                git branch: 'main', url: 'https://github.com/khushalbhavsar/Swiggy-Gitops-EKS.git'
             }
         }
 
@@ -24,7 +24,7 @@ pipeline {
 
         stage('Terraform init') {
             steps {
-                dir('eks-terraform') {
+                dir('infrastructure/environments/dev') {
                     sh 'terraform init --reconfigure'
                 }
             }
@@ -32,7 +32,7 @@ pipeline {
 
         stage('Terraform validate') {
             steps {
-                dir('eks-terraform') {
+                dir('infrastructure/environments/dev') {
                     sh 'terraform validate'
                 }
             }
@@ -40,7 +40,7 @@ pipeline {
 
         stage('Terraform plan') {
             steps {
-                dir('eks-terraform') {
+                dir('infrastructure/environments/dev') {
                     sh 'terraform plan'
                 }
             }
@@ -51,7 +51,7 @@ pipeline {
                 expression { params.ACTION == 'apply' }
             }
             steps {
-                dir('eks-terraform') {
+                dir('infrastructure/environments/dev') {
                     sh 'terraform apply -auto-approve'
                 }
             }
@@ -62,7 +62,7 @@ pipeline {
                 expression { params.ACTION == 'destroy' }
             }
             steps {
-                dir('eks-terraform') {
+                dir('infrastructure/environments/dev') {
                     sh 'terraform destroy -auto-approve'
                 }
             }
