@@ -5,13 +5,13 @@ pipeline {
         nodejs 'nodejs'
     }
     environment  {
-        SCANNER_HOME= tool 'sonar-scanner'                // replace your sonarqube scanner name
-        SONARQUBE_SERVER  = 'sonar-server'                // replace your Jenkins global SonarQube server name (Manage Jenkins > Configure System)
-        AWS_ACCOUNT_ID = '843998948464'                   // replace AWS account ID
-        AWS_ECR_REPO_NAME = 'swiggy'                      //replace ECR repository name
-        SONAR_TOKEN_CRED  = 'sonarqube-token'            // Jenkins secret text credential id
-        AWS_DEFAULT_REGION = 'us-east-1'                 // replace AWS region
-        REPOSITORY_URI = "843998948464.dkr.ecr.us-east-1.amazonaws.com"        // replace your repository URL
+        SCANNER_HOME = tool 'sonar-scanner'                 
+        SONARQUBE_SERVER  = 'sonar-server'                
+        AWS_ACCOUNT_ID = '843998948464'                  
+        AWS_ECR_REPO_NAME = 'swiggy'                      
+        SONAR_TOKEN_CRED  = 'sonarqube-token'            
+        AWS_DEFAULT_REGION = 'us-east-1'                
+        REPOSITORY_URI = "843998948464.dkr.ecr.us-east-1.amazonaws.com"        
 
     }
     stages {
