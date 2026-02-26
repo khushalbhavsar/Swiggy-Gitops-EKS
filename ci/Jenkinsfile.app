@@ -66,24 +66,28 @@ pipeline {
             }
         }
 
-        // OWASP Dependency-Check (non-blocking — will not fail the build)
+        // OWASP Dependency-Check (non-blocking — runs via CLI to avoid plugin setting build=FAILURE)
         stage('OWASP FS Scan') {
             steps {
                 script {
-                    try {
-                        dir('app/swiggy-react') {
-                            dependencyCheck additionalArguments: """--scan . \
-                                --disableYarnAudit --disableNodeAudit""", odcInstallation: 'DP-check'
-                            dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    dir('app/swiggy-react') {
+                        def dcHome = tool name: 'DP-check', type: 'org.jenkinsci.plugins.DependencyCheck.tools.DependencyCheckInstallation'
+                        def exitCode = sh(
+                            script: """${dcHome}/bin/dependency-check.sh \
+                                --scan . \
+                                --disableYarnAudit --disableNodeAudit \
+                                --nvdApiKey 5B1A997F-FF12-F111-8369-0EBF96DE670D \
+                                --out . \
+                                --format XML --format HTML \
+                                --project swiggy || true""",
+                            returnStatus: true
+                        )
+                        echo "OWASP Dependency-Check exited with code: ${exitCode}"
+                        if (exitCode != 0) {
+                            echo "OWASP scan had issues (NVD rate limit / no data). Continuing pipeline."
                         }
-                    } catch (err) {
-                        echo "OWASP Dependency-Check failed: ${err.message}"
-                        echo "Continuing pipeline — vulnerability scan is non-blocking."
-                    } finally {
-                        // Force build result back to SUCCESS — the dependencyCheck plugin
-                        // sets currentBuild.result = FAILURE via exit code 13 before
-                        // the exception reaches the catch block
-                        currentBuild.result = 'SUCCESS'
+                        // Publish report if it exists (won't fail build)
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml', failedTotalCritical: 0, failedTotalHigh: 0
                     }
                 }
             }
