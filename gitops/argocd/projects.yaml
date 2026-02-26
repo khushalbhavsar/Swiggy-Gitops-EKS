@@ -9,7 +9,7 @@ metadata:
 spec:
   description: Swiggy GitOps Project
   sourceRepos:
-    - "https://github.com/<your-org>/swiggy-gitops.git"  # Replace with your repo
+    - "https://github.com/khushalbhavsar/Swiggy-Gitops-EKS.git"
     - "https://prometheus-community.github.io/helm-charts"
     - "https://grafana.github.io/helm-charts"
 

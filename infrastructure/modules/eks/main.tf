@@ -1,8 +1,4 @@
 
-provider "aws" {
-  region = "us-east-1" # Specify your desired region
-}
-
 #Creating IAM role for EKS
 resource "aws_iam_role" "master" {
   name = "yaswanth-eks-master1"
@@ -35,6 +31,9 @@ resource "aws_iam_role_policy_attachment" "AmazonEKSVPCResourceController" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
   role       = aws_iam_role.master.name
 }
+
+# Note: IAM policy ARNs like arn:aws:iam::aws:policy/* are AWS-managed
+# and do not require an account ID (the double-colon is correct).
 
 resource "aws_iam_role" "worker" {
   name = "yaswanth-eks-worker1"

@@ -10,7 +10,7 @@ metadata:
 spec:
   project: swiggy-gitops
   source:
-    repoURL: https://github.com/<your-org>/swiggy-gitops.git  # Replace with your repo
+    repoURL: https://github.com/khushalbhavsar/Swiggy-Gitops-EKS.git
     targetRevision: HEAD
     path: gitops/apps
     directory:

@@ -6,11 +6,5 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket = "swiggy-gitops-tfstate-843998948464"
-    key    = "k8/terraform.tfstate"
-    region = "us-east-1"
-  }
-
   required_version = ">= 1.6.3"
 }

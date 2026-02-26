@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-1"  # Change as needed
-}
-
 resource "aws_ecr_repository" "hotstar" {
   name = "swiggy"
 

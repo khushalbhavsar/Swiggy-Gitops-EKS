@@ -36,16 +36,6 @@ variable "region" {
   default     = "us-east-1"
 }
 
-module "vpc" {
-  source = "../../modules/vpc"
-  # Pass required variables for prod
-}
-
-module "ec2_jumphost" {
-  source = "../../modules/ec2-jumphost"
-  # Pass required variables for prod
-}
-
 module "eks" {
   source = "../../modules/eks"
   # Pass required variables for prod
@@ -53,10 +43,5 @@ module "eks" {
 
 module "ecr" {
   source = "../../modules/ecr"
-  # Pass required variables for prod
-}
-
-module "s3_backend" {
-  source = "../../modules/s3-backend"
   # Pass required variables for prod
 }

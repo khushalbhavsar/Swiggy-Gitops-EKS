@@ -36,17 +36,6 @@ variable "region" {
   default     = "us-east-1"
 }
 
-module "vpc" {
-  source = "../../modules/vpc"
-  # Pass required variables for dev
-}
-
-module "ec2_jumphost" {
-  source            = "../../modules/ec2-jumphost"
-  subnet_id         = module.vpc.public_subnet1_id
-  security_group_id = module.vpc.security_group_id
-}
-
 module "eks" {
   source = "../../modules/eks"
   # Pass required variables for dev
@@ -54,10 +43,5 @@ module "eks" {
 
 module "ecr" {
   source = "../../modules/ecr"
-  # Pass required variables for dev
-}
-
-module "s3_backend" {
-  source = "../../modules/s3-backend"
   # Pass required variables for dev
 }

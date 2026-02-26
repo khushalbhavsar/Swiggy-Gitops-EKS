@@ -36,16 +36,6 @@ variable "region" {
   default     = "us-east-1"
 }
 
-module "vpc" {
-  source = "../../modules/vpc"
-  # Pass required variables for staging
-}
-
-module "ec2_jumphost" {
-  source = "../../modules/ec2-jumphost"
-  # Pass required variables for staging
-}
-
 module "eks" {
   source = "../../modules/eks"
   # Pass required variables for staging
