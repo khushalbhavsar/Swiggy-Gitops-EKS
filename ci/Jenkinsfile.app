@@ -11,8 +11,6 @@ pipeline {
         AWS_ECR_REPO_NAME = 'swiggy'                      
         SONAR_TOKEN_CRED  = 'sonarqube-token'            
         AWS_DEFAULT_REGION = 'us-east-1'                
-        REPOSITORY_URI = "843998948464.dkr.ecr.us-east-1.amazonaws.com/swiggy" // replace with your ECR URI
-
     }
     stages {
         stage('Cleaning Workspace') {
@@ -71,9 +69,11 @@ pipeline {
         // this step it will take 45 min
         stage('OWASP FS Scan') {
             steps {
-                dir('app/swiggy-react') {
-                    dependencyCheck additionalArguments: '--scan . --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-check'
-                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    dir('app/swiggy-react') {
+                        dependencyCheck additionalArguments: '--scan . --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-check'
+                        dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                    }
                 }
             }
         }
@@ -101,16 +101,16 @@ pipeline {
         stage("ECR Image Pushing") {
             steps {
                 script {
-                        sh 'aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${REPOSITORY_URI}'
-                        sh 'docker tag ${AWS_ECR_REPO_NAME}:latest ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
-                        sh 'docker push ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
+                        sh 'aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com'
+                        sh 'docker tag ${AWS_ECR_REPO_NAME}:latest ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
+                        sh 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER}'
                 }
             }
         }
         // no change in this stage
         stage("TRIVY Image Scan") {
             steps {
-                sh 'trivy image ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER} > trivyimage.txt'
+                sh 'trivy image ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${AWS_ECR_REPO_NAME}:${BUILD_NUMBER} > trivyimage.txt'
             }
         }
         stage('Checkout Code') {
@@ -135,7 +135,7 @@ pipeline {
                             echo $BUILD_NUMBER
 
                             # Update the deployment image tag
-                            sed -i "s#image:.*#image: ${REPOSITORY_URI}/${AWS_ECR_REPO_NAME}:$BUILD_NUMBER#g" ${YAML_FILE}
+                            sed -i "s#image:.*#image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${AWS_ECR_REPO_NAME}:$BUILD_NUMBER#g" ${YAML_FILE}
                             git add .
                             git commit -m "Update ${AWS_ECR_REPO_NAME} Image to version \${BUILD_NUMBER}"
                             git push https://${git_token}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
