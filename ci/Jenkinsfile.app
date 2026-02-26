@@ -11,7 +11,7 @@ pipeline {
         AWS_ECR_REPO_NAME = 'swiggy'                      
         SONAR_TOKEN_CRED  = 'sonarqube-token'            
         AWS_DEFAULT_REGION = 'us-east-1'                
-        REPOSITORY_URI = "843998948464.dkr.ecr.us-east-1.amazonaws.com/swiggy"
+        REPOSITORY_URI = "843998948464.dkr.ecr.us-east-1.amazonaws.com/swiggy" // replace with your ECR URI
 
     }
     stages {
