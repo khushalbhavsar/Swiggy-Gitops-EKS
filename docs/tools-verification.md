@@ -1,66 +1,34 @@
+# Installation Verification Checklist
 
-# ✅ Installation Verification Checklist
+Verify that all DevOps tools are correctly installed on the EC2 jumphost by running the commands below.
 
-```bash
-# Git
-git --version
-> ✅ Should show `active (running)`
+---
 
-# Java
-java -version
-> ✅ Should return output with `openjdk version "17..."`
+## Tool Verification Commands
 
-# Jenkins
-systemctl status jenkins
-> ✅ Should show `active (running)`
+| Tool | Command | Expected Output |
+|------|---------|-----------------|
+| **Git** | `git --version` | `git version x.x.x` |
+| **Java** | `java -version` | `openjdk version "17..."` |
+| **Jenkins** | `systemctl status jenkins` | `active (running)` |
+| **Terraform** | `terraform -v` | `Terraform v1.x.x` |
+| **Maven** | `mvn -v` | `Apache Maven x.x.x` |
+| **kubectl** | `kubectl version --client` | `Client Version: v1.xx.x` |
+| **eksctl** | `eksctl version` | `eksctl version: x.x.x` |
+| **Helm** | `helm version` | `v3.x.x` |
+| **Docker** | `docker --version` | `Docker version xx.xx.xx` |
+| **Docker Containers** | `docker ps` | Lists running containers (e.g., `sonarqube`) |
+| **Trivy** | `trivy --version` | `Version: 0.48.3` |
+| **MariaDB** | `mysql --version` | `mysql Ver x.x Distrib...` |
+| **MariaDB Service** | `systemctl status mariadb` | `active (running)` |
+| **ArgoCD** | `kubectl get pods -n argocd` | All pods in `Running` or `Completed` status |
+| **Prometheus / Grafana** | `kubectl get pods -n prometheus` | All pods in `Running` or `Completed` status |
 
-# Terraform
-terraform -v
-> ✅ Should return `Terraform v1.x.x`
+---
 
-# Maven
-mvn -v
-> ✅ Should return `Apache Maven x.x.x`
+## DevOps Environment Tool Map
 
-# kubectl
-kubectl version --client
-> ✅ Should show `Client Version: v1.xx.x`
-
-# eksctl
-eksctl version
-> ✅ Should show `eksctl version: x.x.x`
-
-# Helm
-helm version
-> ✅ Should return something like `v3.6.x`
-
-# Docker
-docker --version
-> ✅ Should return `Docker version xx.xx.xx`
-
-docker ps
-> ✅ Should list running containers like `sonarqube` or others
-
-# Trivy
-trivy --version
-> ✅ Should return `Version: 0.48.3`
-
-# MariaDB
-mysql --version
-> ✅ Should return something like `mysql  Ver x.x Distrib...`
-
-systemctl status mariadb
-> ✅ Should show `active (running)`
-
-# ArgoCD
-kubectl get pods -n argocd
-> ✅ Should list ArgoCD pods, all in `Running` or `Completed` status
-
-# Prometheus / Grafana
-kubectl get pods -n prometheus
-> ✅ Should list Prometheus and Grafana pods, all in `Running` or `Completed` status
 ```
-```bash
 DevOps-Environment/
 ├── Source Control
 │   └── git
