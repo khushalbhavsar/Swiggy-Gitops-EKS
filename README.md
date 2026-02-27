@@ -69,43 +69,376 @@ This project demonstrates a **complete end-to-end DevOps pipeline** for deployin
 
 ## Architecture
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────────────────────────────────────┐
-│   Developer  │────▶│   GitHub     │────▶│              Jenkins CI Server               │
-│  Workstation │     │  Repository  │     │  ┌────────┐ ┌────────┐ ┌───────┐ ┌────────┐ │
-└──────────────┘     └──────┬───────┘     │  │SonarQub│ │  OWASP │ │ Trivy │ │ Docker │ │
-                            │             │  │Analysis│ │DP-Check│ │ Scan  │ │ Build  │ │
-                     ArgoCD watches       │  └────────┘ └────────┘ └───────┘ └───┬────┘ │
-                     for changes          └──────────────────────────────────────┬┘──────┘
-                            │                                                    │
-                            ▼                                          Push Image│
-                     ┌──────────────┐                                           ▼
-                     │   ArgoCD     │                                  ┌──────────────┐
-                     │   (GitOps)   │                                  │   AWS ECR    │
-                     │  Auto-Sync   │                                  │   Registry   │
-                     └──────┬───────┘                                  └──────────────┘
-                            │
-                     Deploy to K8s
-                            │
-                            ▼
-              ┌─────────────────────────────┐
-              │         AWS EKS Cluster     │
-              │  ┌────────────────────────┐ │
-              │  │  swiggy-app (4 replicas)│ │
-              │  │  React 18 on Port 3000 │ │
-              │  └────────────────────────┘ │
-              │  ┌───────────┐ ┌──────────┐ │
-              │  │ MariaDB   │ │PostgreSQL│ │
-              │  │ (3306)    │ │ (5432)   │ │
-              │  └───────────┘ └──────────┘ │
-              │  ┌───────────┐ ┌──────────┐ │
-              │  │Prometheus │ │ Grafana  │ │
-              │  │Monitoring │ │Dashboards│ │
-              │  └───────────┘ └──────────┘ │
-              └─────────────────────────────┘
+### High-Level System Architecture
+
+The end-to-end flow from code commit to production deployment:
+
+```mermaid
+flowchart LR
+    subgraph DEV["👨‍💻 Developer"]
+        A[Code Push]
+    end
+
+    subgraph GH["GitHub Repository"]
+        B[Source Code<br/>app / infra / gitops]
+    end
+
+    subgraph CI["Jenkins CI Server"]
+        direction TB
+        C1[SonarQube<br/>Analysis] --> C2[OWASP<br/>Dep-Check]
+        C2 --> C3[Trivy<br/>FS Scan]
+        C3 --> C4[Docker<br/>Build]
+        C4 --> C5[Push to ECR]
+        C5 --> C6[Trivy<br/>Image Scan]
+        C6 --> C7[Update<br/>deployment.yaml]
+    end
+
+    subgraph ECR["AWS ECR"]
+        D[Container<br/>Registry<br/>Scan-on-Push]
+    end
+
+    subgraph ARGO["ArgoCD · GitOps"]
+        E[Auto-Sync<br/>Self-Heal<br/>Prune]
+    end
+
+    subgraph EKS["AWS EKS Cluster"]
+        direction TB
+        F1[Swiggy App<br/>4 Replicas]
+        F2[MariaDB] 
+        F3[PostgreSQL]
+        F4[Prometheus]
+        F5[Grafana]
+    end
+
+    A -->|git push| B
+    B -->|Webhook| CI
+    C4 -->|Image| D
+    C7 -->|git push tag| B
+    B -->|Watches repo| ARGO
+    ARGO -->|Deploy| EKS
+
+    style DEV fill:#e1f5fe,stroke:#0288d1
+    style GH fill:#f3e5f5,stroke:#7b1fa2
+    style CI fill:#fff3e0,stroke:#ef6c00
+    style ECR fill:#e8f5e9,stroke:#2e7d32
+    style ARGO fill:#fce4ec,stroke:#c62828
+    style EKS fill:#e3f2fd,stroke:#1565c0
 ```
 
-> See [docs/README.md](docs/README.md) for a more detailed architecture diagram.
+---
+
+### AWS Infrastructure Architecture
+
+Terraform-provisioned infrastructure in `us-east-1`:
+
+```mermaid
+flowchart TB
+    subgraph AWS["☁️ AWS Cloud — us-east-1"]
+        subgraph S3["S3"]
+            S3A[("swiggy-gitops-tfstate<br/>Terraform State")]
+        end
+
+        subgraph VPC["VPC · 10.0.0.0/16"]
+            subgraph AZ1["AZ: us-east-1a"]
+                PUB1["Public Subnet<br/>10.0.1.0/24"]
+                PRIV1["Private Subnet<br/>10.0.2.0/24"]
+            end
+            subgraph AZ2["AZ: us-east-1b"]
+                PUB2["Public Subnet<br/>10.0.0.0/24"]
+                PRIV2["Private Subnet<br/>10.0.3.0/24"]
+            end
+
+            IGW["Internet<br/>Gateway"]
+
+            subgraph EC2["EC2 Jumphost"]
+                JH["Jenkins · SonarQube<br/>Docker · kubectl · Helm<br/>Terraform · Trivy<br/>+ 20 DevOps Tools"]
+            end
+
+            subgraph EKSCLUSTER["EKS Cluster"]
+                CP["EKS Control Plane<br/>Master IAM Role"]
+                NG["Worker Node Group<br/>Worker IAM Role<br/>Autoscaler Policy"]
+            end
+        end
+
+        subgraph ECR2["ECR"]
+            REPO["swiggy repo<br/>Scan-on-Push · AES256"]
+        end
+    end
+
+    IGW --- PUB1
+    IGW --- PUB2
+    PUB1 --- EC2
+    PUB1 --- EKSCLUSTER
+    PRIV1 --- NG
+    PRIV2 --- NG
+
+    style AWS fill:#fff9c4,stroke:#f9a825
+    style VPC fill:#e3f2fd,stroke:#1565c0
+    style AZ1 fill:#e8eaf6,stroke:#3949ab
+    style AZ2 fill:#e8eaf6,stroke:#3949ab
+    style EKSCLUSTER fill:#e1f5fe,stroke:#0277bd
+    style EC2 fill:#fff3e0,stroke:#ef6c00
+    style ECR2 fill:#e8f5e9,stroke:#2e7d32
+    style S3 fill:#f3e5f5,stroke:#7b1fa2
+```
+
+---
+
+### CI/CD Pipeline Flow
+
+#### Application Pipeline (`Jenkinsfile.app`) — 11 Stages
+
+```mermaid
+flowchart TB
+    START((Trigger)) --> S1
+
+    subgraph PREP["🔧 Preparation"]
+        S1["1. Clean<br/>Workspace"] --> S2["2. Checkout<br/>from Git"]
+    end
+
+    subgraph QUALITY["🔍 Code Quality & Security"]
+        S3["3. SonarQube<br/>Analysis"] --> S4["4. Quality<br/>Gate Check"]
+        S4 --> S5["5. Install npm<br/>Dependencies"]
+        S5 --> S6["6. OWASP<br/>Dependency-Check"]
+        S6 --> S7["7. Trivy<br/>Filesystem Scan"]
+    end
+
+    subgraph BUILD["📦 Build & Push"]
+        S8["8. Docker<br/>Image Build"] --> S9["9. Push Image<br/>to AWS ECR"]
+        S9 --> S10["10. Trivy<br/>Image Scan"]
+    end
+
+    subgraph DEPLOY["🚀 Deploy"]
+        S11["11. Update<br/>deployment.yaml<br/>&lpar;git push&rpar;"]
+    end
+
+    subgraph POST["📧 Post-Build"]
+        S12["Email Notification<br/>+ Trivy & OWASP<br/>Reports Attached"]
+    end
+
+    S2 --> S3
+    S7 --> S8
+    S10 --> S11
+    S11 --> S12
+
+    style PREP fill:#e8eaf6,stroke:#3949ab
+    style QUALITY fill:#fff3e0,stroke:#ef6c00
+    style BUILD fill:#e8f5e9,stroke:#2e7d32
+    style DEPLOY fill:#fce4ec,stroke:#c62828
+    style POST fill:#f3e5f5,stroke:#7b1fa2
+```
+
+#### Infrastructure Pipeline (`Jenkinsfile.infra`)
+
+```mermaid
+flowchart LR
+    P["Parameter:<br/>apply / destroy"]
+    P --> I1["Checkout"] --> I2["TF Version"] --> I3["TF Init"] --> I4["TF Validate"] --> I5["TF Plan"]
+    I5 -->|apply| I6A["TF Apply ✅"]
+    I5 -->|destroy| I6B["TF Destroy 🗑️"]
+
+    style P fill:#fff3e0,stroke:#ef6c00
+    style I6A fill:#e8f5e9,stroke:#2e7d32
+    style I6B fill:#ffebee,stroke:#c62828
+```
+
+---
+
+### GitOps Workflow with ArgoCD
+
+How ArgoCD implements continuous deployment using the App-of-Apps pattern:
+
+```mermaid
+flowchart TB
+    subgraph REPO["GitHub Repository"]
+        direction TB
+        ROOT["gitops/argocd/<br/>root-app.yaml"]
+        APPS["gitops/apps/"]
+        SW["swiggy/<br/>deployment.yaml<br/>service.yaml<br/>ingress.yaml"]
+        MON["monitoring/<br/>prometheus.yaml<br/>grafana.yaml"]
+        DB["databases/<br/>mariadb.yaml<br/>postgres.yaml"]
+        APPS --- SW
+        APPS --- MON
+        APPS --- DB
+    end
+
+    subgraph ARGOCD["ArgoCD Controller"]
+        direction TB
+        SYNC["Auto-Sync Engine<br/>━━━━━━━━━━━━━━━<br/>✓ Prune: true<br/>✓ Self-Heal: true"]
+        PROJ["Project:<br/>swiggy-gitops"]
+    end
+
+    subgraph EKS2["AWS EKS Cluster"]
+        subgraph NS_DEFAULT["namespace: default"]
+            APP2["Swiggy App<br/>4 replicas · port 3000"]
+            MDB["MariaDB 10.11<br/>port 3306"]
+            PG["PostgreSQL 15<br/>port 5432"]
+        end
+        subgraph NS_PROM["namespace: prometheus"]
+            PROM2["Prometheus<br/>kube-prometheus-stack"]
+            GRAF2["Grafana<br/>9 dashboards"]
+        end
+        subgraph NS_ARGO["namespace: argocd"]
+            ARGO2["ArgoCD Server"]
+        end
+    end
+
+    ROOT -->|"manages"| SYNC
+    SYNC -->|"watches & recurse"| APPS
+    SYNC -->|"deploys"| NS_DEFAULT
+    SYNC -->|"deploys"| NS_PROM
+    PROJ -.->|"scoped"| SYNC
+
+    style REPO fill:#f3e5f5,stroke:#7b1fa2
+    style ARGOCD fill:#fce4ec,stroke:#c62828
+    style EKS2 fill:#e3f2fd,stroke:#1565c0
+    style NS_DEFAULT fill:#e8f5e9,stroke:#2e7d32
+    style NS_PROM fill:#fff3e0,stroke:#ef6c00
+    style NS_ARGO fill:#fce4ec,stroke:#c62828
+```
+
+---
+
+### Kubernetes Cluster Architecture
+
+Workloads and networking inside the EKS cluster:
+
+```mermaid
+flowchart TB
+    INET["🌐 Internet"] -->|"swiggy.example.com"| ING
+
+    subgraph EKS3["AWS EKS Cluster"]
+        ING["Nginx Ingress<br/>Controller"]
+        
+        subgraph SVC["Services"]
+            SVC_APP["swiggy-app<br/>LoadBalancer<br/>:80 → :3000"]
+            SVC_MDB["mariadb-svc<br/>ClusterIP<br/>:3306"]
+            SVC_PG["postgres-svc<br/>ClusterIP<br/>:5432"]
+        end
+
+        subgraph PODS["Pods"]
+            direction TB
+            P1["swiggy-app<br/>replica 1"]
+            P2["swiggy-app<br/>replica 2"]
+            P3["swiggy-app<br/>replica 3"]
+            P4["swiggy-app<br/>replica 4"]
+            PM["mariadb<br/>pod"]
+            PP["postgresql<br/>pod"]
+        end
+
+        subgraph STORAGE["Persistent Storage"]
+            PVC1[("mariadb-pvc")]
+            PVC2[("postgres-pvc")]
+        end
+
+        subgraph SECRETS["Secrets"]
+            SEC1["mariadb-secret"]
+            SEC2["postgres-secret"]
+        end
+    end
+
+    ING --> SVC_APP
+    SVC_APP --> P1 & P2 & P3 & P4
+    SVC_MDB --> PM
+    SVC_PG --> PP
+    PM --- PVC1
+    PP --- PVC2
+    PM -.- SEC1
+    PP -.- SEC2
+
+    style EKS3 fill:#e3f2fd,stroke:#1565c0
+    style SVC fill:#e8eaf6,stroke:#3949ab
+    style PODS fill:#e8f5e9,stroke:#2e7d32
+    style STORAGE fill:#fff3e0,stroke:#ef6c00
+    style SECRETS fill:#fce4ec,stroke:#c62828
+```
+
+---
+
+### Monitoring & Security Architecture
+
+```mermaid
+flowchart TB
+    subgraph MONITORING["📊 Monitoring Stack"]
+        direction TB
+        PROM3["Prometheus<br/>kube-prometheus-stack<br/>Retention: 15d<br/>CPU: 200m–500m<br/>Mem: 512Mi–1Gi"]
+        GRAF3["Grafana<br/>9 Pre-built Dashboards"]
+        LOKI["Loki<br/>Log Aggregation"]
+        
+        PROM3 -->|"datasource<br/>:9090"| GRAF3
+        LOKI -->|"datasource<br/>:3100"| GRAF3
+    end
+
+    subgraph DASHBOARDS["📈 Grafana Dashboards"]
+        direction TB
+        D1["315 · K8s Cluster"]
+        D2["1621 · Deployments"]
+        D3["3662 · Prometheus 2.0"]
+        D4["6417 · K8s via Prometheus"]
+        D5["9614 · NGINX Ingress"]
+        D6["10000 · Cluster Monitoring"]
+        D7["12006 · API Server"]
+        D8["13602 · K8s Networking"]
+        D9["15758 · Global Views"]
+    end
+
+    subgraph SECURITY["🔒 Security Stack"]
+        direction TB
+        SQ["SonarQube<br/>Static Analysis"]
+        OWASP["OWASP Dep-Check<br/>CVE Scanning"]
+        TRIV["Trivy<br/>FS + Image Scan<br/>CRITICAL / HIGH / MEDIUM"]
+        ECRSCAN["ECR Scan-on-Push<br/>Auto Image Scan"]
+        KYV["Kyverno Policies"]
+        
+        subgraph POLICIES["Cluster Policies"]
+            KP1["require-resource-limits<br/>CPU & Memory required"]
+            KP2["restrict-image-registries<br/>ECR only *.dkr.ecr.*.amazonaws.com"]
+        end
+        KYV --> POLICIES
+    end
+
+    GRAF3 --> DASHBOARDS
+
+    style MONITORING fill:#e8f5e9,stroke:#2e7d32
+    style DASHBOARDS fill:#fff3e0,stroke:#ef6c00
+    style SECURITY fill:#ffebee,stroke:#c62828
+    style POLICIES fill:#fce4ec,stroke:#c62828
+```
+
+---
+
+### Terraform Module Dependency Graph
+
+```mermaid
+flowchart BT
+    S3M["s3-backend<br/>Remote State Storage"] 
+    VPCM["vpc<br/>10.0.0.0/16<br/>2 Public + 2 Private Subnets<br/>IGW · Route Tables"]
+    EC2M["ec2-jumphost<br/>Jenkins · SonarQube · Docker<br/>IAM Role + Instance Profile<br/>30 GB · 20+ Tools"]
+    EKSM["eks<br/>EKS Control Plane<br/>Worker Node Group<br/>Autoscaler Policy"]
+    ECRM["ecr<br/>swiggy repo<br/>Scan-on-Push · AES256"]
+
+    subgraph ENVS["Environments"]
+        DEV2["dev/main.tf"]
+        STG["staging/main.tf"]
+        PROD["prod/main.tf"]
+    end
+
+    S3M -->|"state backend"| VPCM
+    S3M -->|"state backend"| EKSM
+    VPCM -->|"vpc_id<br/>subnet_ids"| EC2M
+    VPCM -->|"vpc_id<br/>subnet_ids"| EKSM
+    ENVS -->|"uses modules"| EKSM
+    ENVS -->|"uses modules"| ECRM
+
+    style S3M fill:#f3e5f5,stroke:#7b1fa2
+    style VPCM fill:#e3f2fd,stroke:#1565c0
+    style EC2M fill:#fff3e0,stroke:#ef6c00
+    style EKSM fill:#e1f5fe,stroke:#0277bd
+    style ECRM fill:#e8f5e9,stroke:#2e7d32
+    style ENVS fill:#e8eaf6,stroke:#3949ab
+```
+
+> See [docs/README.md](docs/README.md) for additional architecture details.
 
 ---
 
