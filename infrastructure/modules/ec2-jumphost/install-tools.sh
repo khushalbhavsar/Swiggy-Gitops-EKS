@@ -143,7 +143,7 @@ mysql --version
 # Install PostgreSQL (Amazon Linux 2023)
 # --------------------------------------------------
 sudo dnf install -y postgresql15-server postgresql15
-sudo postgresql-15-setup initdb
+sudo /usr/bin/postgresql-setup --initdb
 
 sudo systemctl enable postgresql
 sudo systemctl start postgresql
