@@ -420,7 +420,7 @@ Go to your Gmail inbox and confirm that a test email has arrived from Jenkins.
 5. **Pipeline configuration:**
    - **Definition:** `Pipeline script from SCM`
    - **SCM:** `Git`
-   - **Repository URL:** `https://github.com/arumullayaswanth/Swiggy-GitOps-project.git`
+   - **Repository URL:** `https://github.com/khushalbhavsar/Swiggy-Gitops-EKS.git`
    - **Branches to build:** `*/master`
    - **Script Path:** `eks-terraform/eks-jenkinsfile`
    - Click **Apply** → **Save**
