@@ -72,6 +72,9 @@ pipeline {
                 script {
                     dir('app/swiggy-react') {
                         def dcHome = tool name: 'DP-check', type: 'org.jenkinsci.plugins.DependencyCheck.tools.DependencyCheckInstallation'
+                        if (dcHome == null || dcHome.trim().isEmpty()) {
+                            error "OWASP Dependency-Check tool 'DP-check' not found. Please configure it in Jenkins Global Tool Configuration."
+                        }
                         sh(
                             script: """${dcHome}/bin/dependency-check.sh \
                                 --scan . \
@@ -79,15 +82,15 @@ pipeline {
                                 --nvdApiKey 5B1A997F-FF12-F111-8369-0EBF96DE670D \
                                 --out . \
                                 --format XML --format HTML \
-                                --project swiggy || true""",
-                            returnStatus: true
+                                --project swiggy""",
+                            returnStatus: false
                         )
-                        // Only publish if report was actually generated
+                        // Publish the report
                         def reportExists = fileExists('dependency-check-report.xml')
                         if (reportExists) {
                             dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
                         } else {
-                            echo "No OWASP report generated — NVD data unavailable. Skipping publisher."
+                            error "OWASP report was not generated. Check NVD API key and tool configuration."
                         }
                     }
                 }
