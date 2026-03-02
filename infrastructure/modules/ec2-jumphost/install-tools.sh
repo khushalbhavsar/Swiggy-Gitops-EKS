@@ -8,9 +8,7 @@ git --version
 sudo yum install -y git wget unzip curl yum-utils
 
 # Install Java (required for Jenkins)
-sudo dnf install java-21-amazon-corretto -y
-or
-sudo yum install fontconfig java-21-openjdk -y
+sudo dnf install -y java-17-amazon-corretto
 java -version
 
 # Install npm
