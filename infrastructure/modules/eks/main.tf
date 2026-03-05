@@ -1,4 +1,3 @@
-
 #Creating IAM role for EKS
 resource "aws_iam_role" "master" {
   name = "yaswanth-eks-master1"
