@@ -1,68 +1,172 @@
+// ============================================================================
+// INFRASTRUCTURE PIPELINE (Jenkinsfile.infra)
+// ============================================================================
+// This pipeline manages AWS infrastructure using Terraform.
+// It provides two actions:
+//   - 'apply'   : Creates/updates infrastructure (VPC, EKS, etc.)
+//   - 'destroy' : Tears down all infrastructure (for cleanup/cost savings)
+//
+// Prerequisites:
+//   1. Terraform installed on Jenkins agent
+//   2. AWS credentials configured (IAM role or env vars)
+//   3. S3 backend bucket for Terraform state (already configured)
+// ============================================================================
+
 pipeline {
+    // ------------------------------------------------------------------------
+    // AGENT CONFIGURATION
+    // ------------------------------------------------------------------------
+    // 'agent any' allows this pipeline to run on any available Jenkins node
+    // Ensure the agent has Terraform and AWS CLI installed
     agent any
 
+    // ------------------------------------------------------------------------
+    // PIPELINE PARAMETERS
+    // ------------------------------------------------------------------------
+    // These parameters appear in the Jenkins UI when triggering the build
+    // Users can select the Terraform action to perform
     parameters {
         choice(
-            name: 'ACTION',
-            choices: ['apply', 'destroy'],
+            name: 'ACTION',                              // Parameter name
+            choices: ['apply', 'destroy'],               // Available options
             description: '🔧 Select the Terraform action to perform'
+            // 'apply'   - Creates or updates infrastructure
+            // 'destroy' - Deletes all managed infrastructure (USE WITH CAUTION!)
         )
     }
 
+    // ============================================================================
+    // PIPELINE STAGES
+    // ============================================================================
     stages {
+        // ------------------------------------------------------------------------
+        // STAGE 1: SOURCE CODE CHECKOUT
+        // ------------------------------------------------------------------------
+        // Clones the repository containing Terraform configurations
+        // Infrastructure code is located in: infrastructure/environments/
         stage('Checkout from Git') {
             steps {
                 git branch: 'main', url: 'https://github.com/khushalbhavsar/Swiggy-Gitops-EKS.git'
             }
         }
 
+        // ------------------------------------------------------------------------
+        // STAGE 2: VERIFY TERRAFORM INSTALLATION
+        // ------------------------------------------------------------------------
+        // Displays Terraform version to verify it's properly installed
+        // Also helps with debugging and build reproducibility
         stage('Terraform version') {
             steps {
                 sh 'terraform --version'
+                // Expected output: Terraform v1.x.x
             }
         }
 
+        // ------------------------------------------------------------------------
+        // STAGE 3: TERRAFORM INIT
+        // ------------------------------------------------------------------------
+        // Initializes the Terraform working directory:
+        //   - Downloads required provider plugins (AWS, etc.)
+        //   - Configures the backend for state storage (S3)
+        //   - Prepares the directory for other Terraform commands
+        // The '--reconfigure' flag forces reconfiguration of the backend
         stage('Terraform init') {
             steps {
+                // Navigate to the dev environment configuration
+                // Other environments: staging/, prod/
                 dir('infrastructure/environments/dev') {
                     sh 'terraform init --reconfigure'
+                    // This connects to the S3 backend to store/retrieve state
                 }
             }
         }
 
+        // ------------------------------------------------------------------------
+        // STAGE 4: TERRAFORM VALIDATE
+        // ------------------------------------------------------------------------
+        // Validates the Terraform configuration files:
+        //   - Checks for syntax errors
+        //   - Validates resource configurations
+        //   - Ensures all required variables are defined
+        // Does NOT access remote state or providers
         stage('Terraform validate') {
             steps {
                 dir('infrastructure/environments/dev') {
                     sh 'terraform validate'
+                    // Expected output: Success! The configuration is valid.
                 }
             }
         }
 
+        // ------------------------------------------------------------------------
+        // STAGE 5: TERRAFORM PLAN
+        // ------------------------------------------------------------------------
+        // Creates an execution plan showing what Terraform will do:
+        //   - Resources to be created (+)
+        //   - Resources to be modified (~)
+        //   - Resources to be destroyed (-)
+        // This is a "dry run" - no actual changes are made
+        // Review this output before applying changes!
         stage('Terraform plan') {
             steps {
                 dir('infrastructure/environments/dev') {
                     sh 'terraform plan'
+                    // Output shows detailed plan of infrastructure changes
                 }
             }
         }
 
+        // ------------------------------------------------------------------------
+        // STAGE 6: TERRAFORM APPLY (Conditional)
+        // ------------------------------------------------------------------------
+        // Creates or updates AWS infrastructure based on Terraform config
+        // ONLY runs when 'apply' is selected in the ACTION parameter
+        // '-auto-approve' skips the interactive confirmation prompt
+        //
+        // This stage provisions:
+        //   - VPC with public/private subnets
+        //   - EKS cluster and node groups
+        //   - IAM roles and policies
+        //   - Security groups
+        //   - And other configured resources
         stage('Terraform apply') {
             when {
+                // Condition: Only execute when ACTION parameter equals 'apply'
                 expression { params.ACTION == 'apply' }
             }
             steps {
                 dir('infrastructure/environments/dev') {
+                    // '-auto-approve' is used for automation (no manual confirmation)
+                    // In production, consider manual approval gates
                     sh 'terraform apply -auto-approve'
                 }
             }
         }
 
+        // ------------------------------------------------------------------------
+        // STAGE 7: TERRAFORM DESTROY (Conditional)
+        // ------------------------------------------------------------------------
+        // ⚠️  WARNING: DESTRUCTIVE OPERATION!
+        // Destroys ALL infrastructure managed by this Terraform configuration
+        // ONLY runs when 'destroy' is selected in the ACTION parameter
+        //
+        // Use cases:
+        //   - Tearing down temporary/test environments
+        //   - Cost savings (stop paying for unused resources)
+        //   - Complete environment rebuild
+        //
+        // CAUTION: This will delete:
+        //   - EKS cluster and all workloads
+        //   - VPC and networking
+        //   - All associated AWS resources
         stage('Terraform destroy') {
             when {
+                // Condition: Only execute when ACTION parameter equals 'destroy'
                 expression { params.ACTION == 'destroy' }
             }
             steps {
                 dir('infrastructure/environments/dev') {
+                    // '-auto-approve' skips confirmation - USE WITH CAUTION!
                     sh 'terraform destroy -auto-approve'
                 }
             }
