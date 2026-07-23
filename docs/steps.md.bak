@@ -1,0 +1,864 @@
+Step-by-Step Equilibrium Process
+For readers who want to replicate the project, here’s the equilibrium process I followed from code to a fully deployed Swiggy clone:
+
+Press enter or click to view image in full size
+
+Press enter or click to view image in full size
+
+Step 1: Clone the GitHub Repository
+Open VS Code.
+Open the terminal in VS Code.
+Clone the project:
+git clone https://github.com/arumullayaswanth/Swiggy-GitOps-project.git
+Step 2: Configure AWS Keys
+Make sure you have your AWS credentials configured. Run:
+
+aws configure
+Enter your:
+
+Access Key ID
+Secret Access Key
+Region (like us-east-1)
+Output format (leave it as json)
+Step 3: Navigate into the Project
+ls
+cd Swiggy-GitOps-project
+ls
+Step 4: Create S3 Buckets for Terraform State
+These buckets will store terraform.tfstate files.
+
+cd s3-buckets/
+ls
+terraform init
+terraform plan
+terraform apply -auto-approve
+Step 5: Create Network
+Navigate to Terraform EC2 folder:
+cd ../terraform_main_ec2
+2. Run Terraform:
+
+terraform init
+terraform plan
+terraform apply -auto-approve
+example output :
+Apply complete! Resources: 24 added, 0 changed, 0 destroyed.
+Outputs:
+jumphost_public_ip = “18.208.229.108”
+region = “us-east-1”
+
+3. The command terraform state list is used to list all resources tracked in your current Terraform state file.
+
+terraform state list
+Step 6: Connect to EC2 and Access Jenkins
+Go to AWS Console → EC2
+Click your instance → Connect
+Once connected, switch to root:
+sudo -i
+4. DevOps Tool Installation Check & Version Report
+
+[Git]="git --version"
+  [Java]="java -version"
+  [Jenkins]="jenkins --version"
+  [Terraform]="terraform -version"
+  [Maven]="mvn -v"
+  [kubectl]="kubectl version --client --short"
+  [eksctl]="eksctl version"
+  [Helm]="helm version --short"
+  [Docker]="docker --version"
+  [Trivy]="trivy --version"
+  [SonarQube]="docker ps | grep sonar"
+  [Grafana]="kubectl get pods -A | grep grafana"
+  [Prometheus]="kubectl get pods -A | grep prometheus"
+  [AWS_CLI]="aws --version"
+  [MariaDB]="mysql --version"
+5. Get the initial Jenkins admin password:
+
+cat /var/lib/jenkins/secrets/initialAdminPassword
+example output : 0c39f23132004d508132ae3e0a7c70e4
+Copy that password!
+
+Step 7: Jenkins Setup in Browser
+Open browser and go to:
+http://<EC2 Public IP>:8080
+2. Paste the password from last step.
+3. Click Install suggested plugins
+4. Create first user:
+Click through: Save and Continue → Save and Finish → Start using Jenkins
+
+🔌Step 9: Install Required Jenkins Plugins
+Go to Jenkins Dashboard → Manage Jenkins → Plugins.
+Click the Available tab.
+Search and install the following:
+✅ Pipeline: stage view
+✅ Eclipse Temurin installer
+✅ SonarQube Scanner
+✅ Maven Integration
+✅ NodeJS
+✅ Docker
+✅ Docker Commons
+✅ Docker pipeline
+✅ Docker API
+✅ Docker-build-step
+✅ Amazon ECR
+✅ Kubernetes Client API
+✅ Kubernetes
+✅ Kubernetes Cerdentials
+✅ Kubernetes CLI
+✅ Kubernetes Cerdentials Provider
+✅ Config File Provider
+✅ OWASP Dependency-check
+✅ Email Extension Template
+✅ Prometheus metrics
+when installation is compete:
+✅ Restart jenkins when installation is complete and no job are running
+Step 10: SonarQube Setup in Browser
+Open browser and go to:
+http://<EC2 Public IP>:9000
+Log in with: — Username: admin - Password: admin (change after first login) 2. Update your password
+
+Old Password: admin
+New Password: yaswanth
+Confirm Password:yaswanth
+update
+SonarQube & Jenkins Integration
+
+This guide will walk you through integrating SonarQube with Jenkins for static code analysis, from setting up the project in SonarQube to configuring Jenkins plugins and credentials.
+
+Step 10.1: Generate a Token in SonarQube for Your Project
+Open the SonarQube Dashboard in your browser
+Example: http://localhost:9000 or your server's URL.
+2. Navigate to: Administration → Under Security → click Users
+3. click the Tokens down Icon button.
+4. Click Generate Token and fill in:
+
+Token name: token
+Expires in: No expiration
+5. Click Generate and copy the token.
+⚠️ Important: You will not be able to view this token again, so copy and save it securely.
+
+6. Done this token will be used in Jenkins for authentication with SonarQube.
+
+Step 10.2: Add SonarQube Token as Jenkins Credential
+Go to Jenkins Dashboard → Manage Jenkins → Credentials.
+Click System → Global credentials (unrestricted).
+Click Add Credentials.
+Fill in:
+Kind: Secret text
+Secret: (paste your SonarQube token)
+ID: sonarqube-token
+Description: sonarqube-token
+5. Click Create.
+
+Step 10.3: Configure SonarQube Server in Jenkins
+Go to Jenkins Dashboard → Manage Jenkins → System.
+Scroll down to the SonarQube servers section.
+Click Add SonarQube and fill:
+Name: sonar-server
+Server URL: http://localhost:9000 (or your actual Sonar IP)
+Server Authentication Token: Select sonarqube-token (from credentials)
+4. ✅ Check Environment variables injection.
+
+5. Click Save.
+
+Step 10.4: Configure Webhook in SonarQube
+Go to SonarQube Dashboard → Administration
+Under Configuration, click Webhooks
+Click Create
+Fill:
+Name: jenkins
+Server URL: http://localhost:8080/sonarqube-webhook/ (or your actual jenkins IP)
+5. Click Create
+
+This allows SonarQube to notify Jenkins after analysis is complete.
+
+Step 10.5: Configure Tools
+Go to Jenkins Dashboard → Manage Jenkins → Tool.
+Scroll to JDK installations section:
+Click Add JDK
+Name: jdk
+✅ Check Install automatically
+Add Installer
+select install from adoptium.net
+version : `jdk-17.0.8.1+1
+3. Scroll to SonarQube Scanner installations section:
+
+Click Add SonarQube Scanner
+Name: sonar-scanner
+✅ Check Install automatically
+version : SonarQube Scanner 7.0.1.4817
+it is least version
+4. Scroll to NodeJS installations section:
+
+Click Add NodeJs
+Name: nodejs
+✅ Check Install automatically
+version : Nodejs 23.7.0
+it is least version
+5. Scroll to Dependency-check installation section:
+
+Click Add Dependency-check
+Name: DP-check
+✅ Check Install automatically
+Add Installer
+select install from github.com
+version : dependency-check-12.0.2
+it is least version
+6. Scroll to Docker section:
+
+Click Add Docker
+Name: Docker
+✅ Check Install automatically
+Add Installer
+select Download from docker.com
+version : least
+it is least version
+7. Scroll to Maven section:
+
+Click Add Maven
+Name: maven
+✅ Check Install automatically
+8. Click Save.
+
+Step 11: 📧 Jenkins Email Notification Setup with Gmail
+Follow these steps to set up email notifications in Jenkins using your Gmail account.
+
+🔐 Step 11.1: Enable 2-Step Verification & App Password in Gmail
+Go to Gmail.
+In the top-right, click Manage your Google Account.
+In the left sidebar, click Security.
+Under Signing in to Google, check if 2-Step Verification is enabled.
+If not, turn it ON and complete the setup.
+6. In the top Google search bar, type: App Passwords
+
+Get Yaswanth Reddy Arumulla’s stories in your inbox
+Join Medium for free to get updates from this writer.
+
+Enter your email
+Subscribe
+7. Generate an app password:
+
+App Name: jenkins
+Click Generate
+🔑 Copy the generated password
+Step 11.2: Add Gmail Credentials in Jenkins
+Go to Jenkins Dashboard → Manage Jenkins → Credentials
+Click System → Global credentials (unrestricted)
+Click Add Credentials
+Fill the form:
+Kind: Username with password
+Username: yaswanth.arumulla@gmail.com
+Password: (paste the app password)
+ID: email
+Description: email
+5. Click Create
+
+Step 11.3: Configure Email Settings in Jenkins
+Go to Jenkins Dashboard → Manage Jenkins → System
+Scroll down to Extended E-mail Notification
+SMTP Server: smtp.gmail.com
+SMTP Port: 465
+Click Advanced
+Credentials: Select the email credential
+✅ Use SSL
+Default Content Type: html (text/html)
+3. Scroll down to E-mail Notification
+
+SMTP Server: smtp.gmail.com
+Click Advanced
+✅ Use SMTP Authentication
+User Name: yaswanth.arumulla@gmail.com
+Password: (paste app password)
+✅ Use SSL
+SMTP Port: 465
+Reply-to Address: yaswanth.arumulla@gmail.com
+Charset: UTF-8
+Test configuration:
+Test E-mail recipient: yaswanth.arumulla@gmail.com
+Click Test Configuration to verify
+Step 11.4: Set Default Email Triggers in Jenkins
+Scroll down to Default Triggers
+Click the dropdown and select:
+✅ Always
+✅ Failure
+✅ Success
+4. Click Apply then Save.
+
+✅ Step 11.5: Check Gmail
+Go to your Gmail inbox and confirm that a test email has arrived from Jenkins.
+You’re now ready to receive Jenkins pipeline notifications via Gmail!
+Step 12: Create a Jenkins Pipeline Job (Create EKS Cluster)
+Go to Jenkins Dashboard
+Click New Item
+Name it: eks-terraform
+Select: Pipeline
+Click OK
+Pipeline:
+Definition : Pipeline script from SCM
+SCM : Git
+Repositories : https://github.com/arumullayaswanth/Swiggy-GitOps-project.git
+Branches to build : */master
+Script Path : eks-terraform/eks-jenkinsfile
+Apply
+Save
+6. click Build with Parameters
+
+ACTION :
+Select Terraform action : apply
+Build
+To verify your EKS cluster, connect to your EC2 jumphost server and run:
+
+aws eks --region us-east-1 update-kubeconfig --name project-eks
+kubectl get nodes
+Step 13: Create a Jenkins Pipeline Job (Create Elastic Container Registry (ecr))
+Go to Jenkins Dashboard
+Click New Item
+Name it: ecr-terraform
+Select: Pipeline
+Click OK
+Pipeline:
+Definition : Pipeline script from SCM
+SCM : Git
+Repositories : https://github.com/arumullayaswanth/Swiggy-GitOps-project.git
+Branches to build : */master
+Script Path : ecr-terraform/ecr-jenkinfine
+Apply
+Save
+6. click Build with Parameters
+
+ACTION :
+Select Terraform action : apply
+Build
+7. To verify your EKS cluster, connect to your EC2 jumphost server and run:
+
+aws ecr describe-repositories --region us-east-1
+Step 14: Create a Jenkins Pipeline Job for Build and Push Docker Images to ECR
+🔐 Step 10.1: Add GitHub PAT to Jenkins Credentials
+
+Navigate to Jenkins Dashboard → Manage Jenkins → Credentials → (global) → Global credentials (unrestricted).
+Click “Add Credentials”.
+In the form:
+Kind: Secret text
+Secret: ghp_HKMhfhfdTPOKYE2LLxGuytsimxnnl5d1f73zh
+ID: my-git-pattoken
+Description: git credentials
+4. Click “OK” to save.
+
+🚀 Step 14.2: ⚖️ Jenkins Pipeline Setup: Build and Push and update Docker Images to ECR
+
+Go to Jenkins Dashboard
+Click New Item
+Name it: swiggy
+Select: Pipeline
+Click OK
+Pipeline:
+Definition : Pipeline script from SCM
+SCM : Git
+Repositories : https://github.com/arumullayaswanth/Swiggy-GitOps-project.git
+Branches to build : */master
+Script Path : jenkinsfiles/swiggy
+Apply
+Save
+6. click Build
+
+🖥️ Step 15: Install ArgoCD in Jumphost EC2
+15.1: Create Namespace for ArgoCD
+
+kubectl create namespace argocd
+15.2: Install ArgoCD in the Created Namespace
+
+kubectl apply -n argocd \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+15.3: Verify the Installation
+
+Ensure all pods are in Running state.
+
+kubectl get pods -n argocd
+15.4: Validate the Cluster
+
+Check your nodes and create a test pod if necessary:
+
+kubectl get nodes
+15.5: List All ArgoCD Resources
+
+kubectl get all -n argocd
+Sample output:
+
+NAME                                                    READY   STATUS    RESTARTS   AGE
+pod/argocd-application-controller-0                     1/1     Running   0          106m
+pod/argocd-applicationset-controller-787bfd9669-4mxq6   1/1     Running   0          106m
+pod/argocd-dex-server-bb76f899c-slg7k                   1/1     Running   0          106m
+pod/argocd-notifications-controller-5557f7bb5b-84cjr    1/1     Running   0          106m
+pod/argocd-redis-b5d6bf5f5-482qq                        1/1     Running   0          106m
+pod/argocd-repo-server-56998dcf9c-c75wk                 1/1     Running   0          106m
+pod/argocd-server-5985b6cf6f-zzgx8                      1/1     Running   0          106m
+15.6: Expose ArgoCD Server Using LoadBalancer
+
+15.6.1: Edit the ArgoCD Server Service
+
+kubectl edit svc argocd-server -n argocd
+15.6.2: Change the Service Type
+
+Find this line:
+
+type: ClusterIP
+Change it to:
+
+type: LoadBalancer
+Save and exit (:wq for vi).
+
+15.6.3: Get the External Load Balancer DNS
+
+kubectl get svc argocd-server -n argocd
+Sample output:
+
+NAME            TYPE           CLUSTER-IP     EXTERNAL-IP                           PORT(S)                          AGE
+argocd-server   LoadBalancer   172.20.1.100   a1b2c3d4e5f6.elb.amazonaws.com        80:31234/TCP,443:31356/TCP       2m
+15.6.4: Access the ArgoCD UI
+
+Use the DNS:
+
+https://<EXTERNAL-IP>.amazonaws.com
+15.7: 🔐 Get the Initial ArgoCD Admin Password
+
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath="{.data.password}" | base64 -d && echo
+Login Details:
+Username: admin
+Password: (The output of the above command)
+Step 16: Deploying with ArgoCD and Configuring Route 53 (Step-by-Step)
+Step 16.1: Create Namespace in EKS (from Jumphost EC2)
+
+Run these commands on your jumphost EC2 server:
+
+kubectl create namespace dev
+kubectl get namespaces
+Step 16.2: Create New Applicatio with ArgoCD
+
+Open the ArgoCD UI in your browser.
+Click + NEW APP.
+Fill in the following:
+Application Name: project
+Project Name: default
+Sync Policy: Automatic
+Repository URL: https://github.com/arumullayaswanth/Swiggy-GitOps-project.git
+Revision: HEAD
+Path: kubernetes-files
+Cluster URL: https://kubernetes.default.svc
+Namespace: dev
+4. Click Create.
+
+ArgoCD will now automatically sync your manifests to the dev namespace.
+
+Step 16.3: Copy the Load Balancer URL
+
+Once the application is deployed:
+
+Go to the Services section in Kubernetes:
+kubectl get svc -n dev
+Locate the EXTERNAL-IP of the LoadBalancer service.
+Copy this IP/URL you’ll use it to configure Route 53 for DNS.
+Step 17: Configuring Route 53 DNS for Your Swiggy Clone
+Follow these steps to point a domain/subdomain to your Load Balancer in EKS.
+
+Step 13.1: Log in to AWS Route 53
+
+Open the AWS Management Console.
+Navigate to Route 53 → Hosted zones.
+Select the hosted zone for aluru.site (or create a new hosted zone if it doesn’t exist).
+Step 13.2: Create a Record Set
+
+Click Create record.
+Fill in the details:
+Press enter or click to view image in full size
+
+3. Click Create records.
+
+Step 13.3: Verify DNS Resolution
+
+Wait a few minutes for DNS propagation.
+Test the DNS from your terminal or browser:
+nslookup swiggy.aluru.site
+3. You should see your LoadBalancer’s IP or DNS returned.
+
+Step 13.4: Access Your Swiggy Clone
+
+Open your browser and navigate to:
+
+http://Swiggy.aluru.site
+Your Hotstar clone should load successfully, deployed via ArgoCD with full GitOps CI/CD automation.
+
+✅ Optional: Enable HTTPS for swiggy.aluru.site using AWS ACM and attach it to your LoadBalancer to serve secure traffic.
+
+Navigate in SonarQube UI to See Project Metrics
+✅ 1. Login to SonarQube Go to:
+http://<your-ec2-ip>:9000
+Log in with:
+
+Username: admin
+Password: admin (change after first login)
+2. Go to Projects
+
+Click on the “Projects” tab in the top menu.
+You’ll see a list of analyzed projects.
+3. Select the Project “Swiggy”
+
+Find and click on the project named Swiggy.
+4. View Bugs & Vulnerabilities
+
+Navigate to the “Issues” tab.
+Filter issues by:
+Type: Bug
+Type: Vulnerability You can further filter by severity, status, etc.
+6. View Overall Code Summary
+
+Click on the “Code” tab to explore source files with inline issue annotations.
+Alternatively, click the Main Branch tab to view:
+🐞 Bugs
+🔐 Vulnerabilities
+🧹 Code Smells
+📄 Duplications
+📊 Coverage
+
+📊 Monitor your Argo CD–deployed website (running via LoadBalancer) — with Prometheus + Grafana
+🔧 View CPU, RAM, pod status, uptime, errors, etc.
+
+🧰 Prerequisites (Before We Start)
+Make sure you have these ready 👇
+1️. A Kubernetes Cluster (EKS, GKE, Minikube — anything works)
+2️. kubectl is installed and connected to your cluster ✅
+3️. Helm is installed (helm version)
+
+# Install Helm (if not installed)
+curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+helm version
+4️. Internet access to pull charts & Docker images
+5️. (Optional) Argo CD if you want GitOps deployment
+If you’re using GitOps, ensure:
+☑ Argo CD is already deployed
+☑ Your app is deployed using Argo CD
+☑ Access to the app via Load Balancer
+
+1️⃣ Create a Namespace for Monitoring
+kubectl create namespace monitoring
+2️⃣ Add Prometheus & Grafana Helm Chart Repo
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+3️⃣ Install the Kube Prometheus Stack (Includes Prometheus + Grafana)
+helm install kube-prom-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring
+🛠️ This installs:
+
+Prometheus (metrics collector)
+Grafana (dashboard visualizer)
+Alertmanager (for warnings)
+Node exporters (to get node metrics)
+4️⃣. Check That Everything Is Running
+kubectl get pods -n monitoring
+You will get output like this :
+
+NAME                                                     READY   STATUS    RESTARTS   AGE
+alertmanager-kube-prom-stack-kube-prome-alertmanager-0   2/2     Running   0          2m45s
+kube-prom-stack-grafana-d5dfd9fd-m5j9t                   3/3     Running   0          3m19s
+kube-prom-stack-kube-prome-operator-6779bc5685-llmc8     1/1     Running   0          3m19s
+kube-prom-stack-kube-state-metrics-6c4dc9d54-w48xj       1/1     Running   0          3m19s
+kube-prom-stack-prometheus-node-exporter-vhncz           1/1     Running   0          3m19s
+kube-prom-stack-prometheus-node-exporter-vx56f           1/1     Running   0          3m19s
+prometheus-kube-prom-stack-kube-prome-prometheus-0       2/2     Running   0          2m45s
+✅ Wait until STATUS is Running.
+
+5️⃣. Accessing the Grafana UI Using LoadBalancer
+Prometheus stack exposes Grafana as an internal service by default. Let’s expose it to the world 🌍.
+
+Edit the Grafana Server File
+kubectl edit svc kube-prom-stack-grafana -n monitoring
+Change the Service Type :
+
+Find this line:
+type: ClusterIP
+Change it to:
+type: LoadBalancer
+Save and exit (:wq for vi).
+
+6️⃣. Get the Grafana LoadBalancer IP
+kubectl get svc kube-prom-stack-grafana -n monitoring
+You will get output like this :
+NAME                      TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)        AGE
+kube-prom-stack-grafana   LoadBalancer   172.20.174.208   abbda6b6f6c9345c6b017c020cf00122-1809047356.us-east-1.elb.amazonaws.com   80:32242/TCP   5m39s
+📌 Copy the EXTERNAL-IP, it will look like: http://a1b2c3d4.us-east-1.elb.amazonaws.com
+
+7️⃣Accessing the Grafana UI
+Open Your Browser
+Copy the EXTERNAL-IP (the long .elb.amazonaws.com address).
+Paste it into your browser:
+Press enter or click to view image in full size
+
+You’ll see the Grafana login page!
+1. 🔐 Get the Initial Grafana Admin Password
+
+kubectl get secret kube-prom-stack-grafana -n monitoring -o jsonpath="{.data.admin-password}" | base64 -d && echo
+You will get output like this :
+prom-operator
+Login to Grafana :
+Go to your LoadBalancer IP in browser.
+Default credentials:
+Username: admin
+Password: prom-operator
+👉 Change the password when prompted.
+You will like this
+
+Press enter or click to view image in full size
+
+8️⃣ Add Kubernetes Dashboards in Grafana
+📊 Go to:
+
+Left menu → Dashboards → + Import → New Dashboard
+Paste Dashboard ID:
+Press enter or click to view image in full size
+
+In the text box under “Import via Grafana.com”, paste this number:
+
+Swiggy-GitOps-project/Grafana at master · arumullayaswanth/Swiggy-GitOps-project
+Contribute to arumullayaswanth/Swiggy-GitOps-project development by creating an account on GitHub.
+github.com
+
+Otherwise you can use Json Files in this repository You can download Jason files and you can upload In the dashboard.
+
+Kubernetes Cluster Monitoring (ID: 315)
+Kubernetes Pods/Containers (ID: 3662)
+Kubernetes Deployments (ID: 1621)
+Kubernetes API Server (ID: 12006)
+Kubernetes Nodes (ID: 6417)
+Kubernetes Namespace Monitoring (ID: 10000)
+Kubernetes Persistent Volumes (ID: 13602)
+Kubernetes Networking (ID: 15758)
+NGINX Ingress Controller (ID: 9614)
+
+Click Load
+Grafana expects one dashboard ID at a time in the “Grafana.com dashboard URL or ID” field.
+For example:
+1. You can enter 315, click Load, and then import that dashboard.
+2. You must repeat this for each dashboard ID (e.g., 3662, 1621, etc.).
+3.
+
+Press enter or click to view image in full size
+
+2. Select Data source
+On the next screen:
+You’ll see a dropdown Prometheus Data Source.
+Choose Prometheus (it’s already installed with kube-prometheus-stack).
+Then click Import.
+Press enter or click to view image in full size
+
+3. View the Dashboard
+After importing, the dashboard will automatically open.
+You’ll now see:
+CPU usage per Node (which node is using the most CPU).
+Memory usage per Pod (how much RAM each pod is using).
+Cluster Uptime.
+Requests, errors, etc.
+
+Press enter or click to view image in full size
+
+9️⃣ See Your Argo CD App Metrics!
+All apps running in your cluster (including ones deployed via Argo CD) are automatically monitored!
+
+Get Yaswanth Reddy Arumulla’s stories in your inbox
+Join Medium for free to get updates from this writer.
+
+Enter your email
+Subscribe
+You can import the Argo CD dashboard from Grafana.com:
+
+Go to Dashboards → Import.
+Use Dashboard ID 14584 (Argo CD Official Dashboard).
+Select Prometheus as the data source.
+Press enter or click to view image in full size
+
+[Optional] Configure Alerts (Email Notifications)
+🎯 Goal:
+When CPU usage (or any other metric) goes beyond a threshold, you’ll receive an email alert from Alertmanager (part of Prometheus stack).
+
+⓵ Confirm Alertmanager is Running
+After installing the kube-prometheus-stack:
+
+kubectl get pods -n monitoring
+Look for something like:
+
+alertmanager-kube-prom-stack-kube-prome-alertmanager-0       
+✅ If it’s running, you’re good to go.
+⓶ The Alertmanager dashboard provides:
+Active Alerts — A list of alerts currently firing (e.g., high CPU usage).
+Silences — You can configure silences to suppress certain alerts.
+Status — Displays cluster and configuration status.
+Receivers — Configured receivers like email, Slack, etc.
+Routes — The routing tree for alert notifications.
+⓷ Edit the Alertmanager Config Map
+The configuration for Alertmanager is stored in a ConfigMap.
+Run:
+
+kubectl get pods -n monitoring | grep alertmanager
+Ensure:
+
+alertmanager-kube-prom-stack-kube-prome-alertmanager-0   2/2   Running
+✅ To Access Alertmanager via Load Balancer (Externally):
+You need to change the service type from ClusterIP to LoadBalancer.
+
+🔧 Step 1: Edit the Alertmanager Service
+Run:
+
+kubectl edit svc kube-prom-stack-kube-prome-alertmanager -n monitoring
+🔄 Step 2: Change This Line:
+Find:
+
+type: ClusterIP
+Change it to:
+
+type: LoadBalancer
+Save and exit (:wq if using vim)
+
+⏳ Step 3: Wait for External IP
+Check again with:
+
+kubectl get svc kube-prom-stack-kube-prome-alertmanager -n monitoring
+It will show something like:
+
+kube-prom-stack-kube-prome-alertmanager   LoadBalancer   172.20.51.43   abc123456789.elb.amazonaws.com   9093:xxxxx/TCP   ...
+✅ Copy the DNS under EXTERNAL-IP
+
+🌐 Step 4: Access Alertmanager in Browser
+Use:
+
+http://<external-dns>:9093
+Example:
+
+http://abc123456789.elb.amazonaws.com:9093
+Press enter or click to view image in full size
+
+✅ Optional: Open Port 9093 in Security Group
+
+If it doesn’t load:
+
+Go to AWS EC2 Console → Load Balancers
+Find the Alertmanager ELB
+Open the Security Group
+Edit Inbound Rules:
+Add rule for TCP 9093
+Source: 0.0.0.0/0 (or your IP)
+run this commends
+
+kubectl get secret alertmanager-kube-prom-stack-kube-prome-alertmanager -n monitoring -o jsonpath='{.data.alertmanager\.yaml}' | base64 --decode > alertmanager.yaml
+ls
+vim alertmanager.yaml
+⓸ Add Email Configuration
+Inside the alertmanager.yml section, add your SMTP email settings:
+(Replace with your email SMTP provider details.)
+
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'      # Your SMTP server
+  smtp_from: 'yaswanth.arumulla@hmail.com'         # Sender email
+  smtp_auth_username: 'yaswanth.arumulla@gmai.com'
+  smtp_auth_password: 'your-app-password'   # Use app password (not your real password!)
+
+route:
+  receiver: 'email-alert'
+
+receivers:
+  - name: 'email-alert'
+    email_configs:
+      - to: 'yaswanth.arumulla@gmail.com'      # Where to send alerts
+        send_resolved: true
+⚠️ For Gmail:
+
+Enable “Less Secure Apps” or create an App Password from Google account security settings.
+kubectl create secret generic alertmanager-kube-prom-stack-kube-prome-alertmanager \
+  --from-file=alertmanager.yaml \
+  -n monitoring \
+  --dry-run=client -o yaml | kubectl apply -f -
+⓹ Save and Restart Alertmanager
+After editing, restart the Alertmanager pod to apply changes:
+
+kubectl delete pod alertmanager-kube-prom-stack-kube-prome-alertmanager-0 -n monitoring
+Wait for Restart
+
+kubectl get pods -n monitoring -w
+Look for:
+
+alertmanager-kube-prom-stack-kube-prome-alertmanager-0   2/2   Running   0   30s
+⓺ Create an Alert Rule (CPU Example)
+We’ll add an alert rule to trigger an email when CPU > 70%.
+
+Create a new YAML file called cpu-alert-rule.yaml:
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cpu-alert
+  namespace: monitoring
+spec:
+  groups:
+    - name: cpu.rules
+      rules:
+        - alert: HighCPUUsage
+          expr: sum(rate(container_cpu_usage_seconds_total[1m])) > 0.7
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU Usage detected"
+            description: "CPU usage is above 70% for 2 minutes."
+Apply the rule:
+
+kubectl apply -f cpu-alert-rule.yaml
+⓻ Test Your Alert
+Run a CPU-heavy process in a pod (simulate load).
+Wait 2–3 minutes.
+Check your email — you should receive an alert!
+⓼ Verify Alerts in Prometheus
+You can also see alerts in the Prometheus UI:
+
+Step 1: Edit the Prometheus Service
+
+Run:
+
+kubectl edit svc kube-prom-stack-kube-prome-prometheus -n monitoring
+Change the Service Type :
+
+Find this line:
+type: ClusterIP
+Change it to:
+type: LoadBalancer
+Save and exit (:wq for vi).
+
+Get the Prometheus LoadBalancer IP
+kubectl get svc kube-prom-stack-kube-prome-prometheus -n monitoring
+NAME                                    TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)                         AGE
+kube-prom-stack-kube-prome-prometheus   LoadBalancer   172.20.146.205   a17530e645b134734ba1cff112072526-1666914053.us-east-1.elb.amazonaws.com   9090:32606/TCP,8080:31797/TCP   3h35m
+📌 Copy the EXTERNAL-IP, it will look like: http://a1b2c3d4.us-east-1.elb.amazonaws.com:9090
+
+Press enter or click to view image in full size
+
+🎉 Done!
+Now, you’ll get email alerts whenever CPU usage crosses the limit.
+
+🎉 Final Checklist
+✅ Prometheus & Grafana Installed
+✅ Grafana Accessible via LoadBalancer
+✅ Kubernetes Metrics Visible
+✅ Argo CD Deployed App Visible
+✅ Dashboards Working
+✅ Optional Alerts Configured
+
+💡 Bonus: What You Can Monitor
+✅ CPU/RAM of your Argo CD app
+✅ Pod crashes/restarts
+✅ Node health
+✅ Cluster capacity
+✅ Response times
+✅ Resource usage per container
+
+🏁 Conclusion
+Monitoring Kubernetes is not just a luxury — it’s a necessity in modern cloud-native environments. With Prometheus and Grafana, you can gain real-time insights into your applications, nodes, and infrastructure performance.
+
+Prometheus ensures that metrics are collected and stored efficiently.
+Grafana makes those metrics meaningful with beautiful, actionable dashboards.
+With Alertmanager, you can proactively respond to issues like high CPU or memory usage before they affect users.
